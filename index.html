@@ -472,8 +472,8 @@
       <button class="btn igbtn" onclick="shareIG()">Instagram でシェア</button>
     </div>
     <div class="share">
-      <button class="btn igbtn" onclick="saveImage('story')">ストーリー画像を保存 📲</button>
-      <button class="btn" onclick="saveImage('square')">正方形画像を保存 🖼️</button>
+      <button class="btn igbtn" onclick="saveImage('story')">ストーリー画像を写真に保存 📲</button>
+      <button class="btn" onclick="saveImage('square')">正方形画像を写真に保存 📸</button>
     </div>
     <div class="share">
       <button class="btn" onclick="copyResult()">結果をコピー 📋</button>
@@ -486,7 +486,7 @@
       <h3>この結果を活かすなら</h3>
       <p>気になる業態が見つかったら、<b>体入・無料相談</b>で“お店の空気”を実際に確かめるのが失敗しないコツ。まずは1つ試してみるところから。</p>
       <div class="share">
-        <button class="btn igbtn" onclick="saveImage('square')">結果画像を保存して残す 🖼️</button>
+        <button class="btn igbtn" onclick="saveImage('square')">結果画像を写真に保存 📸</button>
         <a class="btn cta-link" id="ctaLink" href="#" target="_blank" rel="noopener" style="display:none">相談・お店を探す ▶</a>
       </div>
     </div>
@@ -1273,13 +1273,34 @@ function saveImage(format){
   // フッター
   x.fillStyle="rgba(183,159,214,.85)";x.font="500 "+(story?30:26)+"px "+F;
   x.fillText("#水商売適性診断",W/2,H-(story?110:80));
-  // ダウンロード確定処理（アバター描画後に呼ぶ）
-  const finalize=function(){
+  // 保存確定処理（アバター描画後に呼ぶ）
+  const fname="水商売適性診断_"+code+"_"+(story?"story":"square")+".png";
+  // canvasを同期でFile化（iOS等で共有ジェスチャを維持するためtoDataURL経由）
+  const cvToFile=function(){
+    const d=cv.toDataURL("image/png");const b=atob(d.split(",")[1]);
+    const u=new Uint8Array(b.length);for(let i=0;i<b.length;i++)u[i]=b.charCodeAt(i);
+    return new File([u],fname,{type:"image/png"});
+  };
+  // PC等はファイルとしてダウンロード
+  const doDownload=function(){
     const a=document.createElement("a");
     a.href=cv.toDataURL("image/png");
-    a.download="水商売適性診断_"+code+"_"+(story?"story":"square")+".png";
+    a.download=fname;
     document.body.appendChild(a);a.click();a.remove();
     toast(story?"ストーリー画像を保存しました！":"正方形画像を保存しました！");
+  };
+  // スマホ等では共有シートを開き、そこから端末の「写真」に保存してもらう
+  const finalize=function(){
+    try{
+      const file=cvToFile();
+      if(navigator.canShare&&navigator.canShare({files:[file]})){
+        navigator.share({files:[file],title:"水商売適性タイプ診断",text:"私は"+code+"タイプでした！ #水商売適性診断"})
+          .then(function(){toast("共有メニューの「画像を保存」で写真に保存できます📸");})
+          .catch(function(err){if(!err||err.name!=="AbortError")doDownload();});
+        return;
+      }
+    }catch(e){}
+    doDownload();
   };
   // 角丸クリップでアバターを描画するヘルパー
   const drawAvatarRounded=function(img){
@@ -1302,7 +1323,11 @@ function saveImage(format){
   };
   // キャラクター画像を確保した領域に描画してから保存
   try{
-    if(imgFor(code)){
+    // 画面に表示中のキャラ画像はロード済み。同期描画して共有ジェスチャを維持する（スマホの写真保存対策）
+    const domImg=document.querySelector('#ravatar img');
+    if(domImg&&domImg.complete&&domImg.naturalWidth>0){
+      drawAvatarRounded(domImg);finalize();
+    }else if(imgFor(code)){
       // 差し替え済みのAI/実写イラスト（WebP）を性別に応じて読み込んで描画
       const img=new Image();
       img.onload=function(){drawAvatarRounded(img);finalize();};
