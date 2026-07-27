@@ -199,6 +199,9 @@
   .remoji{font-size:64px;text-align:center;margin:6px 0 18px;filter:drop-shadow(0 0 18px rgba(255,210,74,.6))}
   .ravatar{width:190px;height:190px;margin:10px auto 16px;filter:drop-shadow(0 0 22px rgba(162,75,255,.5))}
   .ravatar svg,.ravatar img{display:block;width:100%;height:100%}
+  .genderToggle{display:flex;gap:8px;justify-content:center;margin:2px 0 16px}
+  .gtbtn{flex:0 0 auto;padding:9px 20px;border-radius:999px;border:1px solid rgba(183,159,214,.45);background:rgba(255,255,255,.04);color:var(--muted);font-size:14px;font-weight:700;cursor:pointer;transition:.2s}
+  .gtbtn.on{background:linear-gradient(135deg,var(--neon-pink),var(--neon-purple));border-color:transparent;color:#fff;box-shadow:0 4px 16px rgba(162,75,255,.4)}
   .gallery-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin:6px 0 22px}
   .gcard{background:linear-gradient(160deg,rgba(162,75,255,.12),rgba(37,230,255,.06));border:1px solid rgba(162,75,255,.35);border-radius:16px;padding:12px 8px 14px;text-align:center;cursor:pointer;transition:transform .15s,border-color .15s,box-shadow .15s}
   .gcard:hover{transform:translateY(-3px);border-color:var(--neon-pink);box-shadow:0 6px 22px rgba(255,46,166,.28)}
@@ -538,6 +541,10 @@
       <div class="keyhint" style="margin:16px 0 0;font-size:12.5px">例）<b>EPAK</b>＝外交×情熱×攻め×計画＝高級クラブの女王型 👑</div>
     </div>
 
+    <div class="genderToggle">
+      <button id="galFemaleBtn" class="gtbtn on" onclick="setGalleryGender('F')">👠 女性タイプ</button>
+      <button id="galMaleBtn" class="gtbtn" onclick="setGalleryGender('M')">🕴 男性タイプ</button>
+    </div>
     <div class="gallery-grid" id="galleryGrid"></div>
     <button class="btn" id="galBackResult" onclick="backToResult()" style="display:none">← 自分の診断結果にもどる</button>
     <button class="btn" onclick="goProfile()">自分のタイプを診断する ▶</button>
@@ -716,7 +723,7 @@ const CHAR_IMG_M={
   ICAK:"/ICAK_M.webp", ICAF:"/ICAF_M.webp", ICRK:"/ICRK_M.webp", ICRF:"/ICRF_M.webp"
 };
 // 性別に応じて画像を選択（男性は男性版、無ければ女性版）
-function imgFor(code){ return (profile.gender==="M" && CHAR_IMG_M[code]) ? CHAR_IMG_M[code] : CHAR_IMG[code]; }
+function imgFor(code,g){ g=g||profile.gender; return (g==="M" && CHAR_IMG_M[code]) ? CHAR_IMG_M[code] : CHAR_IMG[code]; }
 const AVA={
   EPAK:{c1:"#ffd24a",c2:"#ff2ea6",h:3}, EPAF:{c1:"#ff7a3c",c2:"#ff2ea6",h:4},
   EPRK:{c1:"#ff4d7e",c2:"#a24bff",h:0}, EPRF:{c1:"#ff8ecf",c2:"#25e6ff",h:2},
@@ -779,9 +786,9 @@ function accSVG(k,c1,c2,H){
     default: return starPath(58,116,7,c2)+starPath(182,150,6,"#ffd24a")+starPath(176,72,5,"#ffffff");
   }
 }
-function avatarSVG(code,px){
+function avatarSVG(code,px,g){
   px=px||200;
-  if(imgFor(code)) return '<img src="'+imgFor(code)+'" width="'+px+'" height="'+px+'" loading="lazy" decoding="async" alt="'+code+' タイプのキャラクター" style="border-radius:16%;object-fit:cover">';
+  if(imgFor(code,g)) return '<img src="'+imgFor(code,g)+'" width="'+px+'" height="'+px+'" loading="lazy" decoding="async" alt="'+code+' タイプのキャラクター" style="border-radius:16%;object-fit:cover">';
   const a=AVA[code]||{c1:"#ff2ea6",c2:"#a24bff"};
   const cfg=CHIBI[code]||{hair:0,acc:"spark"};
   const emoji=(TYPES[code]&&TYPES[code].emoji)||"✦";
@@ -1074,13 +1081,13 @@ function showResult(code,scores){
   window.__result=t;
   window.__code=code;
   // 本人の診断結果（実スコアあり）は復帰用に保存しておく
-  if(scores){window.__myResult={code:code,scores:scores};}
+  if(scores){window.__myResult={code:code,scores:scores};window.__myGender=profile.gender;}
   switchScreen("result");
   window.scrollTo({top:0,behavior:"smooth"});
 }
 // 図鑑から自分の診断結果へもどす
 function backToResult(){
-  if(window.__myResult){window.__browse=false;showResult(window.__myResult.code,window.__myResult.scores);}
+  if(window.__myResult){window.__browse=false;if(window.__myGender)profile.gender=window.__myGender;showResult(window.__myResult.code,window.__myResult.scores);}
   else{switchScreen("intro");window.scrollTo({top:0,behavior:"smooth"});}
 }
 // 回答の偏りチェック（同じ選択肢に偏っていないか）
@@ -1127,22 +1134,29 @@ function pickShops(t){
 function pickName(t){return profile.gender==="M"?t.nameM:t.nameF;}
 function switchScreen(id){document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));document.getElementById(id).classList.add("active");}
 // 16タイプ図鑑
+var galleryGender="F"; // 図鑑の表示性別（F=女性 / M=男性）
 function renderGallery(){
   const grid=document.getElementById("galleryGrid");
-  if(grid.dataset.done)return;
   grid.innerHTML=codes.map(function(c){
     var t=TYPES[c];
+    var nm=(galleryGender==="M")?t.nameM:t.nameF;
     return '<div class="gcard" onclick="openType(\''+c+'\')">'+
-      '<div class="gav">'+avatarSVG(c,96)+'</div>'+
+      '<div class="gav">'+avatarSVG(c,96,galleryGender)+'</div>'+
       '<div class="gcode">'+c+'</div>'+
-      '<div class="gname">'+t.emoji+' '+t.nameF+'</div>'+
+      '<div class="gname">'+t.emoji+' '+nm+'</div>'+
       '<div class="gpersona">'+t.persona+'</div>'+
     '</div>';
   }).join("");
-  grid.dataset.done="1";
+}
+function setGalleryGender(g){
+  galleryGender=(g==="M")?"M":"F";
+  var f=document.getElementById("galFemaleBtn"),m=document.getElementById("galMaleBtn");
+  if(f)f.classList.toggle("on",galleryGender==="F");
+  if(m)m.classList.toggle("on",galleryGender==="M");
+  renderGallery();
 }
 function openGallery(){
-  renderGallery();
+  setGalleryGender(profile.gender==="M"?"M":"F");
   var gb=document.getElementById("galBackResult");
   if(gb)gb.style.display=window.__myResult?"block":"none";
   switchScreen("gallery");
@@ -1151,7 +1165,7 @@ function openGallery(){
 function openType(code){
   if(!TYPES[code])return;
   window.__browse=true;
-  if(!profile.gender)profile.gender="N";
+  profile.gender=galleryGender; // 図鑑で選んだ性別で詳細を表示
   showResult(code,null);
 }
 function restart(){
